@@ -34,7 +34,7 @@ def validate_model_eval_params(params):
             raise RuntimeError("required field {} not in config".format(field))
 
     if params[constants.CONFIG_FP_TYPE] == "mcsh":
-        if constants.CONFIG_GROUPS_BY_ORDER not in params or constants.CONFIG_SIGMAS not in params:
+        if constants.CONFIG_MCSH_GROUPS not in params or constants.CONFIG_SIGMAS not in params:
             raise RuntimeError("incomplete information in config for MCSH")
 
             #TODO: validate mcsh parameters
@@ -47,41 +47,3 @@ def validate_model_eval_params(params):
     
     else:
         raise RuntimeError("invalid fingerprint type: {}".format(params[constants.CONFIG_FP_TYPE]))
-
-#return dict with model eval params with given values
-#TODO: perform validation?
-def get_model_eval_params(name, fp_type, eval_type, cutoff=None, sigmas=None, groups_by_order=None, bp_params=None, 
-                          nn_layers=None, nn_nodes=None, nn_learning_rate=None, nn_batch_size=None, nn_epochs=None,
-                          eval_num_folds=None, eval_cv_iters=None, rand_seed=None):
-    
-    #map keys in dict to arguments
-    config_dict = {constants.CONFIG_JOB_NAME: name,
-                   constants.CONFIG_FP_TYPE: fp_type,
-                   constants.CONFIG_EVAL_TYPE: eval_type,
-                   constants.CONFIG_CUTOFF: cutoff,
-                   constants.CONFIG_SIGMAS: sigmas,
-                   constants.CONFIG_GROUPS_BY_ORDER: groups_by_order,
-                   constants.CONFIG_BP_PARMS: bp_params,
-                   constants.CONFIG_NN_LAYERS: nn_layers,
-                   constants.CONFIG_NN_NODES: nn_nodes,
-                   constants.CONFIG_NN_LR: nn_learning_rate,
-                   constants.CONFIG_NN_BATCH_SIZE: nn_batch_size,
-                   constants.CONFIG_NN_EPOCHS: nn_epochs,
-                   constants.CONFIG_EVAL_NUM_FOLDS: eval_num_folds,
-                   constants.CONFIG_EVAL_CV_ITERS: eval_cv_iters,
-                   constants.CONFIG_RAND_SEED: rand_seed}
-
-    #remove unset entries
-    to_remove = []
-    for key, value in config_dict.items():
-        if value is None:
-            to_remove.append(key)
-
-    for key in to_remove:
-        del config_dict[key]
-
-    validate_model_eval_params(config_dict)
-
-    return config_dict
-
-

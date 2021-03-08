@@ -40,7 +40,7 @@ class evaluation_params:
 
     def set_config_params(self, config):
         for key, value in config.items():
-            if key == constants.CONFIG_GROUPS_BY_ORDER:
+            if key == constants.CONFIG_MCSH_GROUPS:
                 mcsh_group_params = copy.deepcopy(value)
                 for order, group_params in mcsh_group_params.items():
                     group_params[constants.CONFIG_SIGMAS] = np.array(config[constants.CONFIG_SIGMAS])
@@ -54,6 +54,43 @@ class model_metrics:
     def __init__(self, train_error, test_error):
         self.train_error = train_error
         self.test_error = test_error
+
+
+#return dict with model eval params with given values
+#TODO: perform validation?
+def get_model_eval_params(name, fp_type, eval_type, cutoff=None, sigmas=None, mcsh_groups=None, bp_params=None,
+                          nn_layers=None, nn_nodes=None, nn_learning_rate=None, nn_batch_size=None, nn_epochs=None,
+                          eval_num_folds=None, eval_cv_iters=None, seed=None):
+
+    #map keys in dict to arguments
+    config_dict = {constants.CONFIG_JOB_NAME: name,
+                   constants.CONFIG_FP_TYPE: fp_type,
+                   constants.CONFIG_EVAL_TYPE: eval_type,
+                   constants.CONFIG_CUTOFF: cutoff,
+                   constants.CONFIG_SIGMAS: sigmas,
+                   constants.CONFIG_MCSH_GROUPS: mcsh_groups,
+                   constants.CONFIG_BP_PARAMS: bp_params,
+                   constants.CONFIG_NN_LAYERS: nn_layers,
+                   constants.CONFIG_NN_NODES: nn_nodes,
+                   constants.CONFIG_NN_LR: nn_learning_rate,
+                   constants.CONFIG_NN_BATCH_SIZE: nn_batch_size,
+                   constants.CONFIG_NN_EPOCHS: nn_epochs,
+                   constants.CONFIG_EVAL_NUM_FOLDS: eval_num_folds,
+                   constants.CONFIG_EVAL_CV_ITERS: eval_cv_iters,
+                   constants.CONFIG_RAND_SEED: seed}
+
+    #remove unset entries
+    to_remove = []
+    for key, value in config_dict.items():
+        if value is None:
+            to_remove.append(key)
+
+    for key in to_remove:
+        del config_dict[key]
+
+    utils.validate_model_eval_params(config_dict)
+
+    return config_dict
 
 #evaluate model with a single train/test split
 def evaluate_model_one_split(eval_params, data, run_dir):

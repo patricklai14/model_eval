@@ -10,25 +10,18 @@ from ase.calculators.emt import EMT
 from model_eval import model_evaluation
 
 def main():
-    #create config files
+    #2 ways of setting up configs:
     sigmas = [0.049999999999999996, 0.1057371263440564, 0.22360679774997896, 0.4728708045015879, 1.0]
-    config_1 = {"name": "test_job_1",
-                "fingerprint_type": "mcsh",
-                "evaluation_type": "k_fold_cv",
-                "num_folds": 2,
-                "cv_iters": 2,
-                "nn_layers": 3,
-                "nn_nodes": 20,
-                "nn_learning_rate": 1e-3,
-                "nn_batch_size": 32,
-                "nn_epochs": 1000,
-                "cutoff": 8,
-                "groups_by_order": {
-                    "0": {"groups": [1]},
-                    "1": {"groups": [1]}},
-                "sigmas": sigmas,
-                "seed": 1}
+    mcsh_groups_1 = {"0": {"groups": [1]},
+                     "1": {"groups": [1]}}
 
+    #method 1: use get_model_eval_params() interface 
+    config_1 = model_evaluation.get_model_eval_params(
+                   "test_job_1", "mcsh", "k_fold_cv", eval_cv_iters=2, eval_num_folds=2, nn_layers=3,
+                   nn_nodes=20, nn_learning_rate=1e-3, nn_batch_size=32, nn_epochs=1000, cutoff=8,
+                   mcsh_groups=mcsh_groups_1, sigmas=sigmas, seed=1)
+    
+    #method 2: create your own dict
     config_2 = {"name": "test_job_2",
                 "fingerprint_type": "mcsh",
                 "evaluation_type": "k_fold_cv",
@@ -40,7 +33,7 @@ def main():
                 "nn_batch_size": 32,
                 "nn_epochs": 1000,
                 "cutoff": 8,
-                "groups_by_order": {
+                "mcsh_groups": {
                     "0": {"groups": [1]},
                     "1": {"groups": [1]},
                     "2": {"groups": [1, 2]}},

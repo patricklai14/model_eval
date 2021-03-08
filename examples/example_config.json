@@ -1,6 +1,35 @@
 {
   "name": "test_job_2",
-  "fingerprint_type": "mcsh",
+  "fingerprint_type": "gaussian",
+  "bp_params": {
+    "default": {
+      "G2": {
+        "etas": [
+          0.049999999999999996,
+          0.2320794416806389,
+          1.0772173450159415,
+          5.000000000000001
+        ],
+        "rs_s": [
+          0
+        ]
+      },
+      "G4": {
+        "etas": [
+          0.005
+        ],
+        "zetas": [
+          1.0,
+          4.0
+        ],
+        "gammas": [
+          1.0,
+          -1.0
+        ]
+      },
+      "cutoff": 2
+    }
+  },
   "evaluation_type": "k_fold_cv",
   "num_folds": 2,
   "cv_iters": 2,
@@ -9,31 +38,5 @@
   "nn_learning_rate": 0.001,
   "nn_batch_size": 32,
   "nn_epochs": 1000,
-  "cutoff": 8,
-  "groups_by_order": {
-    "0": {
-      "groups": [
-        1
-      ]
-    },
-    "1": {
-      "groups": [
-        1
-      ]
-    },
-    "2": {
-      "groups": [
-        1,
-        2
-      ]
-    }
-  },
-  "sigmas": [
-    0.049999999999999996,
-    0.1057371263440564,
-    0.22360679774997896,
-    0.4728708045015879,
-    1.0
-  ],
   "seed": 1
 }
