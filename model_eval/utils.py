@@ -3,7 +3,7 @@ import pathlib
 from model_eval import constants
 
 #mem is in terms of GB
-def create_pbs(location, job_name, command, mem=2, time="00:30:00"):
+def create_pbs(location, job_name, command, conda_env, mem=2, time="00:30:00"):
     pbs_filename = pathlib.Path(location) / "{}.pbs".format(job_name)
     pbs_file = open(pbs_filename, "w+")
     
@@ -17,7 +17,7 @@ def create_pbs(location, job_name, command, mem=2, time="00:30:00"):
     pbs_file.write("\n")
 
     pbs_file.write("module load anaconda3/2019.10\n")
-    pbs_file.write("conda activate amptorch\n")
+    pbs_file.write("conda activate {}\n".format(conda_env))
     pbs_file.write(command)
     pbs_file.write("\n")
 
@@ -26,8 +26,7 @@ def create_pbs(location, job_name, command, mem=2, time="00:30:00"):
     return pbs_filename
 
 def validate_model_eval_params(params):
-    required_fields = [constants.CONFIG_CUTOFF, 
-                       constants.CONFIG_FP_TYPE, 
+    required_fields = [constants.CONFIG_FP_TYPE, 
                        constants.CONFIG_EVAL_TYPE]
 
     for field in required_fields:
@@ -40,8 +39,8 @@ def validate_model_eval_params(params):
 
             #TODO: validate mcsh parameters
 
-    elif config[constants.CONFIG_FP_TYPE] == "bp":
-        if constants.BP_PARAMS not in params:
+    elif params[constants.CONFIG_FP_TYPE] == "gaussian":
+        if constants.CONFIG_BP_PARAMS not in params:
             raise RuntimeError("bp_params required in config for BP")
 
         #TODO: validate bp parameters

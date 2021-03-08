@@ -57,15 +57,14 @@ class model_metrics:
 
 #evaluate model with a single train/test split
 def evaluate_model_one_split(eval_params, data, run_dir):
-    if eval_params.params[constants.CONFIG_FP_TYPE] == "mcsh":
-        fp_scheme = "mcsh"
+    fp_scheme = eval_params.params[constants.CONFIG_FP_TYPE]
+    if fp_scheme == "mcsh":
         fp_params = {"MCSHs": eval_params.params[constants.PARAM_MCSH_GROUP_PARAMS],
                      "atom_gaussians": data.atom_gaussians,
                      "cutoff": eval_params.params[constants.CONFIG_CUTOFF]
                     }
 
     else:
-        fp_scheme = "bp"
         fp_params = eval_params.params[constants.CONFIG_BP_PARAMS]
 
     config = {
@@ -184,7 +183,8 @@ def evaluate_model(eval_config, data, run_dir='./'):
         return mse_train, mse_test
 
 #evaluate the models given in config_files and return performance metrics
-def evaluate_models(dataset, config_dicts=None, config_files=None, eval_mode="cv", enable_parallel=False, workspace=None):
+def evaluate_models(dataset, config_dicts=None, config_files=None, eval_mode="cv", enable_parallel=False, workspace=None,
+                    time_limit="00:30:00", mem_limit=2, conda_env=None):
 
     if enable_parallel:
         if not workspace:
@@ -255,7 +255,7 @@ def evaluate_models(dataset, config_dicts=None, config_files=None, eval_mode="cv
             model_eval_script = model_eval_script_dir / constants.EVAL_MODEL_SCRIPT
             command_str = "python {} --workspace {} --job_name {} --data {} --config {}".format(
                             model_eval_script, workspace, job_name, train_data_file, config_file)
-            pbs_file = utils.create_pbs(pbs_path, job_name, command_str, time="00:30:00")
+            pbs_file = utils.create_pbs(pbs_path, job_name, command_str, conda_env, time=time_limit, mem=mem_limit)
 
             job_info[job_name] = (config, pbs_file)
             job_names.append(job_name)

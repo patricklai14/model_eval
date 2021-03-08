@@ -17,23 +17,35 @@ def main():
                 "evaluation_type": "k_fold_cv",
                 "num_folds": 2,
                 "cv_iters": 2,
+                "nn_layers": 3,
+                "nn_nodes": 20,
+                "nn_learning_rate": 1e-3,
+                "nn_batch_size": 32,
+                "nn_epochs": 1000,
                 "cutoff": 8,
                 "groups_by_order": {
                     "0": {"groups": [1]},
                     "1": {"groups": [1]}},
-                "sigmas": sigmas}
+                "sigmas": sigmas,
+                "seed": 1}
 
     config_2 = {"name": "test_job_2",
                 "fingerprint_type": "mcsh",
                 "evaluation_type": "k_fold_cv",
                 "num_folds": 2,
                 "cv_iters": 2,
+                "nn_layers": 3,
+                "nn_nodes": 20,
+                "nn_learning_rate": 1e-3,
+                "nn_batch_size": 32,
+                "nn_epochs": 1000,
                 "cutoff": 8,
                 "groups_by_order": {
                     "0": {"groups": [1]},
                     "1": {"groups": [1]},
                     "2": {"groups": [1, 2]}},
-                "sigmas": sigmas}
+                "sigmas": sigmas,
+                "seed": 1}
 
     curr_dir = pathlib.Path(__file__).parent.absolute()
 
@@ -72,8 +84,17 @@ def main():
 
     #run model evaluation
     workspace = curr_dir / "test_workspace"
-    results = model_evaluation.evaluate_models(data, config_files=[str(config_file_1), str(config_file_2)], 
-                                         enable_parallel=True, workspace=workspace)
+    
+    #running model evaluation by passing in a list of config files
+    #results = model_evaluation.evaluate_models(data, config_dicts=[str(config_file_1), str(config_file_2)],
+    #                                           enable_parallel=True, workspace=workspace,
+    #                                           time_limit="00:30:00", mem_limit=2, conda_env="amptorch")
+
+    #running model evaluation by passing in a list of config dicts
+    #replace "amptorch" below with name of conda env that has AMPTorch installed
+    results = model_evaluation.evaluate_models(data, config_dicts=[config_1, config_2], 
+                                               enable_parallel=True, workspace=workspace, 
+                                               time_limit="00:30:00", mem_limit=2, conda_env="amptorch")
 
     #print results
     print("CV errors: {}".format([metrics.test_error for metrics in results]))
