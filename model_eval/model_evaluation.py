@@ -11,8 +11,7 @@ import numpy as np
 
 from amptorch.trainer import AtomsTrainer
 
-import constants
-import utils
+from model_eval import constants, utils
 
 #structure for holding dataset and parameters
 class dataset:

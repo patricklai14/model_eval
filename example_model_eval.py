@@ -7,7 +7,7 @@ import numpy as np
 from ase import Atoms
 from ase.calculators.emt import EMT
 
-import model_evaluation
+from model_eval import model_evaluation
 
 def main():
     #create config files

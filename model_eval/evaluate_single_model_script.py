@@ -7,8 +7,7 @@ import pathlib
 import pdb
 import pickle
 
-import model_evaluation
-import constants
+from model_eval import model_evaluation, constants
 
 def main():
     parser = argparse.ArgumentParser(description="Run model evaluation")
