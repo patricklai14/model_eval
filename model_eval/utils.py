@@ -26,24 +26,27 @@ def create_pbs(location, job_name, command, conda_env, mem=2, time="00:30:00"):
     return pbs_filename
 
 def validate_model_eval_params(params):
-    required_fields = [constants.CONFIG_FP_TYPE, 
-                       constants.CONFIG_EVAL_TYPE]
+    required_fields = [constants.CONFIG_EVAL_TYPE]
 
     for field in required_fields:
         if field not in params:
             raise RuntimeError("required field {} not in config".format(field))
 
-    if params[constants.CONFIG_FP_TYPE] == "mcsh":
-        if constants.CONFIG_MCSH_GROUPS not in params or constants.CONFIG_SIGMAS not in params:
-            raise RuntimeError("incomplete information in config for MCSH")
+    #TODO: error checking if we're generating fingerprints
+    if constants.CONFIG_FP_TYPE in params:
+        if params[constants.CONFIG_FP_TYPE] == "gmp":
+            if constants.CONFIG_MCSH_GROUPS not in params or constants.CONFIG_SIGMAS not in params:
+                #raise RuntimeError("incomplete information in config for MCSH")
+                pass
 
             #TODO: validate mcsh parameters
 
-    elif params[constants.CONFIG_FP_TYPE] == "gaussian":
-        if constants.CONFIG_BP_PARAMS not in params:
-            raise RuntimeError("bp_params required in config for BP")
+        elif params[constants.CONFIG_FP_TYPE] == "gaussian":
+            if constants.CONFIG_BP_PARAMS not in params:
+                #raise RuntimeError("bp_params required in config for BP")
+                pass
 
-        #TODO: validate bp parameters
+            #TODO: validate bp parameters
     
-    else:
-        raise RuntimeError("invalid fingerprint type: {}".format(params[constants.CONFIG_FP_TYPE]))
+        else:
+            raise RuntimeError("invalid fingerprint type: {}".format(params[constants.CONFIG_FP_TYPE]))

@@ -15,11 +15,18 @@ from model_eval import constants, utils
 
 #structure for holding dataset and parameters
 class dataset:
-    def __init__(self, elements, train_images, test_images=None, atom_gaussians=None):
+    def __init__(self, elements, train_images=None, train_data_files=None, test_images=None, atom_gaussians=None):
         self.elements = elements
         self.train_images = train_images
+        self.train_data_files = train_data_files
         self.test_images = test_images
         self.atom_gaussians = atom_gaussians
+
+        if not self.train_images and not self.train_data_files:
+            raise RuntimeError("dataset object created with no training data")            
+
+        if self.train_images is not None and train_data_files is not None:
+            raise RuntimeError("only one of train_images and train_data_files can be set")
 
 #model/evaluation parameters
 class evaluation_params:
@@ -94,18 +101,35 @@ def get_model_eval_params(name, fp_type, eval_type, cutoff=None, sigmas=None, mc
 
 #evaluate model with a single train/test split
 def evaluate_model_one_split(eval_params, data, run_dir):
-    fp_scheme = eval_params.params[constants.CONFIG_FP_TYPE]
-    if fp_scheme == "mcsh":
-        fp_params = {"MCSHs": eval_params.params[constants.PARAM_MCSH_GROUP_PARAMS],
-                     "atom_gaussians": data.atom_gaussians,
-                     "cutoff": eval_params.params[constants.CONFIG_CUTOFF]
-                    }
+
+    #set up dataset params
+    if data.train_images:
+        #set up fingerprint params
+        fp_scheme = eval_params.params[constants.CONFIG_FP_TYPE]
+        if fp_scheme == "gmp":
+            fp_params = {"MCSHs": eval_params.params[constants.PARAM_MCSH_GROUP_PARAMS],
+                         "atom_gaussians": data.atom_gaussians,
+                         "cutoff": eval_params.params[constants.CONFIG_CUTOFF]
+                        }
+
+        else:
+            fp_params = eval_params.params[constants.CONFIG_BP_PARAMS]
+
+        dataset_params = {"raw_data": data.train_images,
+                          "val_split": 0,
+                          "elements": data.elements,
+                          "fp_scheme": fp_scheme,
+                          "fp_params": fp_params,
+                          "save_fps": False}
+        get_forces=False
 
     else:
-        fp_params = eval_params.params[constants.CONFIG_BP_PARAMS]
+        dataset_params = {"lmdb_path": data.train_data_files,
+                          "val_split": 0}
+        get_forces=True
 
     config = {
-        "model": {"get_forces": False, 
+        "model": {"get_forces": get_forces, 
                   "num_layers": eval_params.params[constants.CONFIG_NN_LAYERS], 
                   "num_nodes": eval_params.params[constants.CONFIG_NN_NODES]},
         "optim": {
@@ -115,14 +139,7 @@ def evaluate_model_one_split(eval_params, data, run_dir):
             "batch_size": eval_params.params[constants.CONFIG_NN_BATCH_SIZE],
             "epochs": eval_params.params[constants.CONFIG_NN_EPOCHS],
         },
-        "dataset": {
-            "raw_data": data.train_images,
-            "val_split": 0,
-            "elements": data.elements,
-            "fp_scheme": fp_scheme,
-            "fp_params": fp_params,
-            "save_fps": False,
-        },
+        "dataset": dataset_params,
         "cmd": {
             "debug": False,
             "run_dir": run_dir,
@@ -144,12 +161,15 @@ def evaluate_model_one_split(eval_params, data, run_dir):
     print("Test MSE:", curr_mse_test)
 
     #train MSE
-    predictions = trainer.predict(data.train_images)
-    true_energies_train = np.array([image.get_potential_energy() for image in data.train_images])
-    pred_energies = np.array(predictions["energy"])
-    curr_mse_train = np.mean((true_energies_train - pred_energies) ** 2)
-    print("Train MSE:", curr_mse_train)
-
+    if data.train_images:
+        predictions = trainer.predict(data.train_images)
+        true_energies_train = np.array([image.get_potential_energy() for image in data.train_images])
+        pred_energies = np.array(predictions["energy"])
+        curr_mse_train = np.mean((true_energies_train - pred_energies) ** 2)
+        print("Train MSE:", curr_mse_train)
+    else:
+        curr_mse_train = -1.
+    
     return curr_mse_train, curr_mse_test
 
 #run model evaluation with given params and return (train_mse, test_mse)
@@ -216,7 +236,7 @@ def evaluate_model(eval_config, data, run_dir='./'):
 
     else:
         #simple train on training set, test on test set
-        mse_train, mse_test = evaluate_model_one_split(eval_params, data)
+        mse_train, mse_test = evaluate_model_one_split(eval_params, data, run_dir)
         return mse_train, mse_test
 
 #evaluate the models given in config_files and return performance metrics
@@ -346,3 +366,4 @@ def evaluate_models(dataset, config_dicts=None, config_files=None, eval_mode="cv
             results.append(model_metrics(train_mse, test_mse))
 
         return results
+

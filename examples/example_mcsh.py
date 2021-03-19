@@ -17,13 +17,13 @@ def main():
 
     #method 1: use get_model_eval_params() interface 
     config_1 = model_evaluation.get_model_eval_params(
-                   "test_job_1", "mcsh", "k_fold_cv", eval_cv_iters=2, eval_num_folds=2, nn_layers=3,
+                   "test_job_1", "gmp", "k_fold_cv", eval_cv_iters=2, eval_num_folds=2, nn_layers=3,
                    nn_nodes=20, nn_learning_rate=1e-3, nn_batch_size=32, nn_epochs=1000, cutoff=8,
                    mcsh_groups=mcsh_groups_1, sigmas=sigmas, seed=1)
     
     #method 2: create your own dict
     config_2 = {"name": "test_job_2",
-                "fingerprint_type": "mcsh",
+                "fingerprint_type": "gmp",
                 "evaluation_type": "k_fold_cv",
                 "num_folds": 2,
                 "cv_iters": 2,

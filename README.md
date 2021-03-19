@@ -11,4 +11,7 @@ Examples for using `model_eval` are provided in the `examples` directory. For ex
 
 Note: Before running the example script, you will have to make a change to the call to `model_evaluation.evaluate_models()`. The `conda_env` argument is set to `"amptorch"`; this should be changed to the name of the conda environment you are using to run AMPTorch.
 
+To run the example for training on `lmdb` files:
+1. generate the sample `lmdb` file by running: `python examples/construct_lmdb.py` (copied from the AMPTorch example code)
+2. run the evaluation script: `python examples/example_lmdb.py`
 
