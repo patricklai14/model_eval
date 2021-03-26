@@ -65,9 +65,9 @@ class model_metrics:
 
 #return dict with model eval params with given values
 #TODO: perform validation?
-def get_model_eval_params(name, fp_type, eval_type, cutoff=None, sigmas=None, mcsh_groups=None, bp_params=None,
-                          nn_layers=None, nn_nodes=None, nn_learning_rate=None, nn_batch_size=None, nn_epochs=None,
-                          eval_num_folds=None, eval_cv_iters=None, seed=None):
+def get_model_eval_params(name=None, fp_type=None, eval_type=None, cutoff=None, sigmas=None, mcsh_groups=None, 
+                          bp_params=None, nn_layers=None, nn_nodes=None, nn_learning_rate=None, nn_batch_size=None, 
+                          nn_epochs=None, eval_num_folds=None, eval_cv_iters=None, seed=None):
 
     #map keys in dict to arguments
     config_dict = {constants.CONFIG_JOB_NAME: name,

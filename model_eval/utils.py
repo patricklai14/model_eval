@@ -1,3 +1,4 @@
+import copy
 import pathlib
 
 from model_eval import constants
@@ -50,3 +51,15 @@ def validate_model_eval_params(params):
     
         else:
             raise RuntimeError("invalid fingerprint type: {}".format(params[constants.CONFIG_FP_TYPE]))
+
+def merge_params(params_1, params_2):
+    merged_params = copy.deepcopy(params_1)
+
+    for key, value in params_2.items():
+        if key in merged_params:
+            if value != merged_params[key]:
+                raise RuntimeError("conflicting values for key {} when merging params".format(key))
+
+        merged_params[key] = value
+
+    return merged_params
