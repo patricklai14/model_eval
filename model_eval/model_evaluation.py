@@ -65,9 +65,9 @@ class model_metrics:
 
 #return dict with model eval params with given values
 #TODO: perform validation?
-def get_model_eval_params(name, fp_type, eval_type, cutoff=None, sigmas=None, mcsh_groups=None, bp_params=None,
-                          nn_layers=None, nn_nodes=None, nn_learning_rate=None, nn_batch_size=None, nn_epochs=None,
-                          eval_num_folds=None, eval_cv_iters=None, seed=None):
+def get_model_eval_params(name=None, fp_type=None, eval_type=None, cutoff=None, sigmas=None, mcsh_groups=None, 
+                          bp_params=None, nn_layers=None, nn_nodes=None, nn_learning_rate=None, nn_batch_size=None, 
+                          nn_epochs=None, eval_num_folds=None, eval_cv_iters=None, seed=None):
 
     #map keys in dict to arguments
     config_dict = {constants.CONFIG_JOB_NAME: name,
@@ -178,6 +178,9 @@ def evaluate_model(eval_config, data, run_dir='./'):
     np.random.seed(eval_params.params[constants.CONFIG_RAND_SEED])
 
     if eval_params.params[constants.CONFIG_EVAL_TYPE] == "k_fold_cv":
+        #CV only works if training images are provided explicitly
+        if not data.train_images:
+            raise RuntimeError("training images must be provided explicitly for CV")
 
         #setup for k-fold cross validation
         num_folds = eval_params.params[constants.CONFIG_EVAL_NUM_FOLDS]
@@ -219,7 +222,8 @@ def evaluate_model(eval_config, data, run_dir='./'):
                 images_train = data.train_images[:start_index] + data.train_images[end_index:]
                 images_test = data.train_images[start_index:end_index]
 
-                curr_data = dataset(data.elements, images_train, images_test, data.atom_gaussians)
+                curr_data = dataset(data.elements, train_images=images_train, test_images=images_test, 
+                                    atom_gaussians=data.atom_gaussians)
                 curr_mse_train, curr_mse_test = evaluate_model_one_split(eval_params, curr_data, run_dir)
                 
                 mse_test_list.append(curr_mse_test)
