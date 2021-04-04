@@ -15,12 +15,10 @@ from model_eval import constants, utils
 
 #structure for holding dataset and parameters
 class dataset:
-    def __init__(self, elements, train_images=None, train_data_files=None, test_images=None, atom_gaussians=None):
-        self.elements = elements
+    def __init__(self, train_images=None, train_data_files=None, test_images=None):
         self.train_images = train_images
         self.train_data_files = train_data_files
         self.test_images = test_images
-        self.atom_gaussians = atom_gaussians
 
         if not self.train_images and not self.train_data_files:
             raise RuntimeError("dataset object created with no training data")            
@@ -28,129 +26,76 @@ class dataset:
         if self.train_images is not None and train_data_files is not None:
             raise RuntimeError("only one of train_images and train_data_files can be set")
 
-#model/evaluation parameters
 class evaluation_params:
     def __init__(self, config):
-        utils.validate_model_eval_params(config)
-        self.set_default_params()
+        self.set_default_values()
         self.set_config_params(config)
+        utils.validate_amptorch_config(self.amptorch_config)
+        utils.validate_eval_config(self.eval_config)
 
-    def set_default_params(self):
-        self.params = {constants.CONFIG_NN_LAYERS: constants.DEFAULT_NN_LAYERS,
-                       constants.CONFIG_NN_NODES: constants.DEFAULT_NN_NODES,
-                       constants.CONFIG_NN_LR: constants.DEFAULT_NN_LR,
-                       constants.CONFIG_NN_BATCH_SIZE: constants.DEFAULT_NN_BATCH_SIZE,
-                       constants.CONFIG_NN_EPOCHS: constants.DEFAULT_NN_EPOCHS,
-                       constants.CONFIG_EVAL_NUM_FOLDS: constants.DEFAULT_EVAL_NUM_FOLDS,
-                       constants.CONFIG_EVAL_CV_ITERS: constants.DEFAULT_EVAL_CV_ITERS,
-                       constants.CONFIG_RAND_SEED: constants.DEFAULT_RAND_SEED}
+    def set_default_values(self):
+        self.amptorch_config = {
+            "model": {
+                "get_forces": False,
+                "num_layers": 3, 
+                "num_nodes": 20
+            },
+            "optim": {
+                "device": "cpu",
+                "force_coefficient": 0.0,
+                "lr": 1e-3,
+                "batch_size": 32,
+                "epochs": 1000
+            },
+            "dataset": {
+                "val_split": 0,
+                "save_fps": False
+            },
+            "cmd": {
+                "debug": False,
+                "run_dir": "./",
+                "seed": 1,
+                "identifier": "test",
+                "verbose": False,
+                "logger": False
+            }
+        }
 
-    def set_config_params(self, config):
-        for key, value in config.items():
-            if key == constants.CONFIG_MCSH_GROUPS:
-                mcsh_group_params = copy.deepcopy(value)
-                for order, group_params in mcsh_group_params.items():
-                    group_params[constants.CONFIG_SIGMAS] = np.array(config[constants.CONFIG_SIGMAS])
+        self.eval_config = {
+            constants.CONFIG_EVAL_NUM_FOLDS: 5,
+            constants.CONFIG_EVAL_CV_ITERS: 3,
+            constants.CONFIG_RAND_SEED: 1
+        }
 
-                self.params[constants.PARAM_MCSH_GROUP_PARAMS] = mcsh_group_params
+    def set_values(self, config):
+        if constants.CONFIG_AMPTORCH_CONFIG in config:
+            for key, value in config[constants.CONFIG_AMPTORCH_CONFIG].items():
+                self.amptorch_config[key] = value
+
+        for key, value in config:
+            if key == constants.CONFIG_AMPTORCH_CONFIG:
                 continue
 
-            self.params[key] = value
+            self.eval_config[key] = value
 
 class model_metrics:
     def __init__(self, train_error, test_error):
         self.train_error = train_error
         self.test_error = test_error
 
-
-#return dict with model eval params with given values
-#TODO: perform validation?
-def get_model_eval_params(name=None, fp_type=None, eval_type=None, cutoff=None, sigmas=None, mcsh_groups=None, 
-                          bp_params=None, nn_layers=None, nn_nodes=None, nn_learning_rate=None, nn_batch_size=None, 
-                          nn_epochs=None, eval_num_folds=None, eval_cv_iters=None, seed=None):
-
-    #map keys in dict to arguments
-    config_dict = {constants.CONFIG_JOB_NAME: name,
-                   constants.CONFIG_FP_TYPE: fp_type,
-                   constants.CONFIG_EVAL_TYPE: eval_type,
-                   constants.CONFIG_CUTOFF: cutoff,
-                   constants.CONFIG_SIGMAS: sigmas,
-                   constants.CONFIG_MCSH_GROUPS: mcsh_groups,
-                   constants.CONFIG_BP_PARAMS: bp_params,
-                   constants.CONFIG_NN_LAYERS: nn_layers,
-                   constants.CONFIG_NN_NODES: nn_nodes,
-                   constants.CONFIG_NN_LR: nn_learning_rate,
-                   constants.CONFIG_NN_BATCH_SIZE: nn_batch_size,
-                   constants.CONFIG_NN_EPOCHS: nn_epochs,
-                   constants.CONFIG_EVAL_NUM_FOLDS: eval_num_folds,
-                   constants.CONFIG_EVAL_CV_ITERS: eval_cv_iters,
-                   constants.CONFIG_RAND_SEED: seed}
-
-    #remove unset entries
-    to_remove = []
-    for key, value in config_dict.items():
-        if value is None:
-            to_remove.append(key)
-
-    for key in to_remove:
-        del config_dict[key]
-
-    utils.validate_model_eval_params(config_dict)
-
-    return config_dict
-
 #evaluate model with a single train/test split
 def evaluate_model_one_split(eval_params, data, run_dir):
 
-    #set up dataset params
+    #TODO: clean this up?
     if data.train_images:
-        #set up fingerprint params
-        fp_scheme = eval_params.params[constants.CONFIG_FP_TYPE]
-        if fp_scheme == "gmp":
-            fp_params = {"MCSHs": eval_params.params[constants.PARAM_MCSH_GROUP_PARAMS],
-                         "atom_gaussians": data.atom_gaussians,
-                         "cutoff": eval_params.params[constants.CONFIG_CUTOFF]
-                        }
-
-        else:
-            fp_params = eval_params.params[constants.CONFIG_BP_PARAMS]
-
-        dataset_params = {"raw_data": data.train_images,
-                          "val_split": 0,
-                          "elements": data.elements,
-                          "fp_scheme": fp_scheme,
-                          "fp_params": fp_params,
-                          "save_fps": False}
-        get_forces=False
-
+        eval_params.amptorch_config["dataset"]["raw_data"] = data.train_images
     else:
-        dataset_params = {"lmdb_path": data.train_data_files,
-                          "val_split": 0}
-        get_forces=True
+        eval_params.amptorch_config["dataset"]["lmdb_path"] = data.train_data_files
 
-    config = {
-        "model": {"get_forces": get_forces, 
-                  "num_layers": eval_params.params[constants.CONFIG_NN_LAYERS], 
-                  "num_nodes": eval_params.params[constants.CONFIG_NN_NODES]},
-        "optim": {
-            "device": "cpu",
-            "force_coefficient": 0.0,
-            "lr": eval_params.params[constants.CONFIG_NN_LR],
-            "batch_size": eval_params.params[constants.CONFIG_NN_BATCH_SIZE],
-            "epochs": eval_params.params[constants.CONFIG_NN_EPOCHS],
-        },
-        "dataset": dataset_params,
-        "cmd": {
-            "debug": False,
-            "run_dir": run_dir,
-            "seed": eval_params.params[constants.CONFIG_RAND_SEED],
-            "identifier": "test",
-            "verbose": False,
-            "logger": False,
-        },
-    }
+    eval_params.amptorch_config["cmd"]["run_dir"] = run_dir
 
-    trainer = AtomsTrainer(config)
+
+    trainer = AtomsTrainer(eval_params.amptorch_config)
     trainer.train()
 
     #test MSE
@@ -175,15 +120,15 @@ def evaluate_model_one_split(eval_params, data, run_dir):
 #run model evaluation with given params and return (train_mse, test_mse)
 def evaluate_model(eval_config, data, run_dir='./'):
     eval_params = evaluation_params(eval_config)
-    np.random.seed(eval_params.params[constants.CONFIG_RAND_SEED])
+    np.random.seed(eval_params.eval_config[constants.CONFIG_RAND_SEED])
 
-    if eval_params.params[constants.CONFIG_EVAL_TYPE] == "k_fold_cv":
+    if eval_params.eval_config[constants.CONFIG_EVAL_TYPE] == "k_fold_cv":
         #CV only works if training images are provided explicitly
         if not data.train_images:
             raise RuntimeError("training images must be provided explicitly for CV")
 
         #setup for k-fold cross validation
-        num_folds = eval_params.params[constants.CONFIG_EVAL_NUM_FOLDS]
+        num_folds = eval_params.eval_config[constants.CONFIG_EVAL_NUM_FOLDS]
 
         #Separate data into k folds
         #The first n_samples % n_splits folds have size n_samples // n_splits + 1, 
@@ -206,7 +151,7 @@ def evaluate_model(eval_config, data, run_dir='./'):
             fold_indices.append((start_index, end_index))
 
         #number of times to run CV
-        num_cv_iters = eval_params.params[constants.CONFIG_EVAL_CV_ITERS]
+        num_cv_iters = eval_params.eval_config[constants.CONFIG_EVAL_CV_ITERS]
 
         mse_test_list = []
         mse_train_list = []
@@ -222,8 +167,7 @@ def evaluate_model(eval_config, data, run_dir='./'):
                 images_train = data.train_images[:start_index] + data.train_images[end_index:]
                 images_test = data.train_images[start_index:end_index]
 
-                curr_data = dataset(data.elements, train_images=images_train, test_images=images_test, 
-                                    atom_gaussians=data.atom_gaussians)
+                curr_data = dataset(train_images=images_train, test_images=images_test)
                 curr_mse_train, curr_mse_test = evaluate_model_one_split(eval_params, curr_data, run_dir)
                 
                 mse_test_list.append(curr_mse_test)
