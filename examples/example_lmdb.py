@@ -10,27 +10,7 @@ from ase.calculators.emt import EMT
 from model_eval import model_evaluation
 
 def main():
-    #create configs
-    config_1 = {"name": "test_job_1",
-                "evaluation_type": "train_test_split",
-                "nn_layers": 2,
-                "nn_nodes": 3,
-                "nn_learning_rate": 1e-3,
-                "nn_batch_size": 32,
-                "nn_epochs": 1000,
-                "seed": 1}
-
-    config_2 = {"name": "test_job_2",
-                "evaluation_type": "train_test_split",
-                "nn_layers": 3,
-                "nn_nodes": 20,
-                "nn_learning_rate": 1e-3,
-                "nn_batch_size": 32,
-                "nn_epochs": 1000,
-                "seed": 1}
-
     curr_dir = pathlib.Path(__file__).parent.absolute()
-    dir_prefix = "/storage/home/hpaceice1/plai30/sandbox"
 
     #setup dataset
     #train data
@@ -57,11 +37,45 @@ def main():
         images.append(image)
 
     elements = ["Cu","C","O"]
-    atom_gaussians = {"C": str(curr_dir / "MCSH_potential/C_coredensity_5.g"),
-                      "O": str(curr_dir / "MCSH_potential/O_totaldensity_7.g"),
-                      "Cu": str(curr_dir / "MCSH_potential/Cu_totaldensity_5.g")}
-    data = model_evaluation.dataset(elements, train_data_files=[train_data_file], test_images=images, 
-                                    atom_gaussians=atom_gaussians)
+    data = model_evaluation.dataset(train_data_files=[train_data_file], test_images=images)
+
+    #create configs
+    config_1 = {
+        "name": "test_job_1",
+        "evaluation_type": "train_test_split",
+        "seed": 1,
+        "amptorch_config": {
+            "model": {
+                "get_forces": True, 
+                "num_layers": 2, 
+                "num_nodes": 3},
+            "optim": {
+                "device": "cpu",
+                "force_coefficient": 0.0,
+                "lr": 1e-3,
+                "batch_size": 32,
+                "epochs": 1000,
+            },
+            "dataset": {
+                #notice that we don't set the actual dataset here
+                "val_split": 0,
+                "elements": elements
+            },
+            "cmd": {
+                "debug": False,
+                "run_dir": "./",
+                "seed": 1,
+                "identifier": "test",
+                "verbose": False,
+                "logger": False,
+            }
+        }
+    }
+
+    config_2 = copy.deepcopy(config_1)
+    config_2["name"] = "test_job_2"
+    config_2["amptorch_config"]["model"]["num_layers"] = 3
+    config_2["amptorch_config"]["model"]["num_nodes"] = 20
 
     #run model evaluation
     workspace = curr_dir / "test_workspace"
