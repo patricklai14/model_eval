@@ -74,20 +74,20 @@ def main():
                 #notice that we don't set the actual dataset here
                 "val_split": 0,
                 "elements": elements,
-                "fp_scheme": "gmp",
+                "fp_scheme": "mcsh",
                 "fp_params": gmp_params,
                 "save_fps": False,
                 "sampling": {
                     "sampling_method": "nns",
                     "sampling_params": {
-                        "cutoff": 1.,
-                        "rate": 1.,
+                        "cutoff": 0.5,
+                        "rate": 0.5,
                         "method": "pykdtree",
                         "start_trial_component": 1,
-                        "max_component": 2,
+                        "max_component": 1,
                         "target_variance": 0.999999, 
                     },
-                    "save": True,
+                    "save": False,
                 },
                 "scaling": {
                     "type": "normalize", 
@@ -108,6 +108,7 @@ def main():
 
     config_2 = copy.deepcopy(config_1)
     config_2["name"] = "test_job_2"
+    config_2["amptorch_config"]["dataset"]["sampling"]["sampling_params"]["rate"] = 0.3
 
     #run model evaluation
     workspace = curr_dir / "test_workspace"

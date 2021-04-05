@@ -32,9 +32,12 @@ def validate_amptorch_config(config):
     if constants.CONFIG_FP_SCHEME in dataset_config:
         fp_scheme = dataset_config[constants.CONFIG_FP_SCHEME]
         if fp_scheme == "gmp":
-                pass
+            pass
 
             #TODO: validate mcsh parameters
+        elif fp_scheme == "mcsh":
+            #TODO: remove once we've switched over to gmp completely
+            pass
 
         elif fp_scheme == "gaussian":
             pass
