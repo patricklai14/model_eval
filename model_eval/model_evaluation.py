@@ -29,7 +29,7 @@ class dataset:
 class evaluation_params:
     def __init__(self, config):
         self.set_default_values()
-        self.set_config_params(config)
+        self.set_values(config)
         utils.validate_amptorch_config(self.amptorch_config)
         utils.validate_eval_config(self.eval_config)
 
@@ -72,7 +72,7 @@ class evaluation_params:
             for key, value in config[constants.CONFIG_AMPTORCH_CONFIG].items():
                 self.amptorch_config[key] = value
 
-        for key, value in config:
+        for key, value in config.items():
             if key == constants.CONFIG_AMPTORCH_CONFIG:
                 continue
 

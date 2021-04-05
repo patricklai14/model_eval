@@ -87,16 +87,17 @@ def main():
                 "run_dir": "./",
                 "seed": 1,
                 "identifier": "test",
-                "verbose": True,
+                "verbose": False,
                 "logger": False,
+            }
         }
     }
 
     gmp_params_2 = copy.deepcopy(gmp_params_1)
     gmp_params_2["MCSHs"] = {
-        "0": {"groups": [1]},
-        "1": {"groups": [1]},
-        "2": {"groups": [1, 2]}   
+        "0": {"groups": [1], "sigmas": sigmas},
+        "1": {"groups": [1], "sigmas": sigmas},
+        "2": {"groups": [1, 2], "sigmas": sigmas}   
     }
 
     config_2 = copy.deepcopy(config_1)

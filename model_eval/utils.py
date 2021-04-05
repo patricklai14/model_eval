@@ -48,5 +48,5 @@ def validate_eval_config(config):
     required_fields = [constants.CONFIG_EVAL_TYPE]
 
     for field in required_fields:
-        if field not in params:
+        if field not in config:
             raise RuntimeError("required field {} not in config".format(field))
