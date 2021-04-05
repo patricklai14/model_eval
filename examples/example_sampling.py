@@ -1,6 +1,5 @@
 import copy
 import json
-import os
 import pathlib
 
 import numpy as np
@@ -36,9 +35,7 @@ def main():
     #set up evaluation configs
     elements = ["Cu","C","O"]
     dir_prefix = "/storage/home/hpaceice1/plai30/sandbox"
-    atom_gaussians = {"C": os.path.join(dir_prefix, "config/MCSH_potential/C_coredensity_5.g"),
-                      "O": os.path.join(dir_prefix, "config/MCSH_potential/O_totaldensity_7.g"),
-                      "Cu": os.path.join(dir_prefix, "config/MCSH_potential/Cu_totaldensity_5.g")}
+    curr_dir = pathlib.Path(__file__).parent.absolute()
 
     #note that values in config must be basic python types (e.g. lists instead of np arrays)
     sigmas = [0.049999999999999996, 0.1057371263440564, 0.22360679774997896, 0.4728708045015879, 1.0]
@@ -49,9 +46,9 @@ def main():
             "1": {"groups": [1], "sigmas": sigmas},
         },
         "atom_gaussians": {
-            "C": os.path.join(dir_prefix, "config/MCSH_potential/C_coredensity_5.g"),
-            "O": os.path.join(dir_prefix, "config/MCSH_potential/O_totaldensity_7.g"),
-            "Cu": os.path.join(dir_prefix, "config/MCSH_potential/Cu_totaldensity_5.g"),
+            "C": str(curr_dir / "MCSH_potential/C_coredensity_5.g"),
+            "O": str(curr_dir / "MCSH_potential/O_totaldensity_7.g"),
+            "Cu": str(curr_dir / "MCSH_potential/Cu_totaldensity_5.g")
         },
         "cutoff": 8
     }
@@ -80,23 +77,23 @@ def main():
                 "fp_scheme": "gmp",
                 "fp_params": gmp_params,
                 "save_fps": False,
-                # "sampling": {
-                #     "sampling_method": "nns",
-                #     "sampling_params": {
-                #         "cutoff": 1.,
-                #         "rate": 1.,
-                #         "method": "pykdtree",
-                #         "start_trial_component": 1,
-                #         "max_component": 2,
-                #         "target_variance": 0.999999, 
-                #     },
-                #     "save": True,
-                # },
-                # "scaling": {
-                #     "type": "normalize", 
-                #     "range": (-1, 1),
-                #     "elementwise": False
-                # }
+                "sampling": {
+                    "sampling_method": "nns",
+                    "sampling_params": {
+                        "cutoff": 1.,
+                        "rate": 1.,
+                        "method": "pykdtree",
+                        "start_trial_component": 1,
+                        "max_component": 2,
+                        "target_variance": 0.999999, 
+                    },
+                    "save": True,
+                },
+                "scaling": {
+                    "type": "normalize", 
+                    "range": (-1, 1),
+                    "elementwise": False
+                }
             },
             "cmd": {
                 "debug": False,
@@ -113,7 +110,6 @@ def main():
     config_2["name"] = "test_job_2"
 
     #run model evaluation
-    curr_dir = pathlib.Path(__file__).parent.absolute()
     workspace = curr_dir / "test_workspace"
 
     #running model evaluation by passing in a list of config dicts
