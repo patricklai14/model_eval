@@ -56,6 +56,7 @@ def main():
     config_1 = {
         "name": "test_job_1",
         "evaluation_type": "train_test_split",
+        "loss_type": "mse",
         "seed": 1,
         "amptorch_config": {
             "model": {

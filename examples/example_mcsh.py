@@ -61,6 +61,7 @@ def main():
         "evaluation_type": "k_fold_cv",
         "cv_iters": 2,
         "num_folds": 2,
+        "loss_type": "mse",
         "seed": 1,
         "amptorch_config": {
             "model": {
