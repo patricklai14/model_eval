@@ -34,7 +34,6 @@ def main():
 
     #set up evaluation configs
     elements = ["Cu","C","O"]
-    dir_prefix = "/storage/home/hpaceice1/plai30/sandbox"
     curr_dir = pathlib.Path(__file__).parent.absolute()
 
     #note that values in config must be basic python types (e.g. lists instead of np arrays)
@@ -56,6 +55,7 @@ def main():
     config_1 = {
         "name": "test_job_1",
         "evaluation_type": "train_test_split",
+        "loss_type": "mse",
         "seed": 1,
         "amptorch_config": {
             "model": {
@@ -120,7 +120,7 @@ def main():
                                                time_limit="00:30:00", mem_limit=2, conda_env="amptorch")
 
     #print results
-    print("CV errors: {}".format([metrics.test_error for metrics in results]))
+    print("Test errors: {}".format([metrics.test_error for metrics in results]))
 
 if __name__ == "__main__":
     main()

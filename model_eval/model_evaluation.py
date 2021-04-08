@@ -15,16 +15,20 @@ from model_eval import constants, utils
 
 #structure for holding dataset and parameters
 class dataset:
-    def __init__(self, train_images=None, train_data_files=None, test_images=None):
+    def __init__(self, train_images=None, train_data_files=None, test_images=None, test_data_files=None):
         self.train_images = train_images
         self.train_data_files = train_data_files
         self.test_images = test_images
+        self.test_data_files = test_data_files
 
         if not self.train_images and not self.train_data_files:
             raise RuntimeError("dataset object created with no training data")            
 
-        if self.train_images is not None and train_data_files is not None:
+        if self.train_images is not None and self.train_data_files is not None:
             raise RuntimeError("only one of train_images and train_data_files can be set")
+
+        if self.test_images is not None and self.test_data_files is not None:
+            raise RuntimeError("only one of test_images and test_data_files can be set")
 
 class evaluation_params:
     def __init__(self, config):
@@ -37,7 +41,7 @@ class evaluation_params:
         self.amptorch_config = {
             "model": {
                 "get_forces": False,
-                "num_layers": 3, 
+                "num_layers": 3,
                 "num_nodes": 20
             },
             "optim": {
@@ -64,6 +68,7 @@ class evaluation_params:
         self.eval_config = {
             constants.CONFIG_EVAL_NUM_FOLDS: 5,
             constants.CONFIG_EVAL_CV_ITERS: 3,
+            constants.CONFIG_EVAL_LOSS_TYPE: "mae",
             constants.CONFIG_RAND_SEED: 1
         }
 
@@ -85,37 +90,76 @@ class model_metrics:
 
 #evaluate model with a single train/test split
 def evaluate_model_one_split(eval_params, data, run_dir):
+    #AMPTorch modifies the config we pass into it. We work around this by making a copy
+    eval_params = copy.deepcopy(eval_params)
 
+    #handle datasets
     #TODO: clean this up?
     if data.train_images:
         eval_params.amptorch_config["dataset"]["raw_data"] = data.train_images
+        train_images = data.train_images
     else:
-        eval_params.amptorch_config["dataset"]["lmdb_path"] = data.train_data_files
+        is_lmdb = True
+        for data_file in data.train_data_files:
+            if data_file[-5:] != ".lmdb":
+                is_lmdb = False
+
+        if is_lmdb:
+            #handle lmdb files
+            eval_params.amptorch_config["dataset"]["lmdb_path"] = data.train_data_files
+        else:
+            #handled pickled images
+            if len(data.train_data_files) != 1:
+                raise RuntimeError("only one pickled training data file allowed")
+
+            train_images = pickle.load(open(data.train_data_files[0], "rb"))
+            eval_params.amptorch_config["dataset"]["raw_data"] = train_images
+
+    #if provided, this has to be a pickled list of images
+    if data.test_images:
+        test_images = data.test_images
+    elif data.test_data_files:
+        if len(data.test_data_files) != 1:
+            raise RuntimeError("only one pickled testing data file allowed")
+
+        test_images = pickle.load(open(data.test_data_files[0], "rb"))
 
     eval_params.amptorch_config["cmd"]["run_dir"] = run_dir
-
 
     trainer = AtomsTrainer(eval_params.amptorch_config)
     trainer.train()
 
     #test MSE
-    predictions = trainer.predict(data.test_images)
-    true_energies_test = np.array([image.get_potential_energy() for image in data.test_images])
+    predictions = trainer.predict(test_images)
+    true_energies_test = np.array([image.get_potential_energy() for image in test_images])
     pred_energies = np.array(predictions["energy"])
-    curr_mse_test = np.mean((true_energies_test - pred_energies) ** 2)
-    print("Test MSE:", curr_mse_test)
+
+    #calculate loss
+    loss_type = eval_params.eval_config[constants.CONFIG_EVAL_LOSS_TYPE]
+    if loss_type == constants.CONFIG_LOSS_TYPE_MSE:
+        curr_error_test = np.mean((true_energies_test - pred_energies) ** 2)
+    elif loss_type == constants.CONFIG_LOSS_TYPE_MAE:
+        curr_error_test = np.mean(np.abs(true_energies_test - pred_energies))
+
+    print("Test Error: {}".format(curr_error_test))
 
     #train MSE
-    if data.train_images:
-        predictions = trainer.predict(data.train_images)
-        true_energies_train = np.array([image.get_potential_energy() for image in data.train_images])
+    if train_images:
+        predictions = trainer.predict(train_images)
+        true_energies_train = np.array([image.get_potential_energy() for image in train_images])
         pred_energies = np.array(predictions["energy"])
-        curr_mse_train = np.mean((true_energies_train - pred_energies) ** 2)
-        print("Train MSE:", curr_mse_train)
+
+        #calculate loss
+        if loss_type == constants.CONFIG_LOSS_TYPE_MSE:
+            curr_error_train = np.mean((true_energies_train - pred_energies) ** 2)
+        elif loss_type == constants.CONFIG_LOSS_TYPE_MAE:
+            curr_error_train = np.mean(np.abs(true_energies_train - pred_energies))
+
+        print("Train Error: {}".format(curr_error_train))
     else:
-        curr_mse_train = -1.
+        curr_error_train = -1.
     
-    return curr_mse_train, curr_mse_test
+    return curr_error_train, curr_error_test
 
 #run model evaluation with given params and return (train_mse, test_mse)
 def evaluate_model(eval_config, data, run_dir='./'):
@@ -153,8 +197,8 @@ def evaluate_model(eval_config, data, run_dir='./'):
         #number of times to run CV
         num_cv_iters = eval_params.eval_config[constants.CONFIG_EVAL_CV_ITERS]
 
-        mse_test_list = []
-        mse_train_list = []
+        error_test_list = []
+        error_train_list = []
 
         for _ in range(num_cv_iters):
             np.random.shuffle(data.train_images)
@@ -168,28 +212,48 @@ def evaluate_model(eval_config, data, run_dir='./'):
                 images_test = data.train_images[start_index:end_index]
 
                 curr_data = dataset(train_images=images_train, test_images=images_test)
-                curr_mse_train, curr_mse_test = evaluate_model_one_split(eval_params, curr_data, run_dir)
+                curr_error_train, curr_error_test = evaluate_model_one_split(eval_params, curr_data, run_dir)
                 
-                mse_test_list.append(curr_mse_test)
-                mse_train_list.append(curr_mse_train)
+                error_test_list.append(curr_error_test)
+                error_train_list.append(curr_error_train)
 
-        mse_test_avg = np.mean(mse_test_list)
-        print("Avg test MSE: {}".format(mse_test_avg))
+        error_test_avg = np.mean(error_test_list)
+        print("Avg test error: {}".format(error_test_avg))
 
-        mse_train_avg = np.mean(mse_train_list)
-        print("Avg train MSE: {}".format(mse_train_avg))
+        error_train_avg = np.mean(error_train_list)
+        print("Avg train error: {}".format(error_train_avg))
 
-        return mse_train_avg, mse_test_avg
+        return error_train_avg, error_test_avg
 
 
     else:
         #simple train on training set, test on test set
-        mse_train, mse_test = evaluate_model_one_split(eval_params, data, run_dir)
-        return mse_train, mse_test
+        error_train, error_test = evaluate_model_one_split(eval_params, data, run_dir)
+        return error_train, error_test
 
 #evaluate the models given in config_files and return performance metrics
-def evaluate_models(dataset, config_dicts=None, config_files=None, eval_mode="cv", enable_parallel=False, workspace=None,
-                    time_limit="00:30:00", mem_limit=2, conda_env=None):
+def evaluate_models(dataset=None, datasets=[], config_dicts=None, config_files=None, enable_parallel=False, 
+                    workspace=None, time_limit="00:30:00", mem_limit=2, conda_env=None):
+
+    #basic error checking on datasets/configs
+    if not dataset:
+        if not datasets:
+            raise RuntimeError("either one of dataset or datasets must be provided")
+
+        #if multiple datasets provided, the number of datasets must match number of configs
+        if not config_dicts:
+            if not config_files:
+                raise RuntimeError("either one of config_dicts or config_files must be provided")
+
+            if len(datasets) != len(config_files):
+                raise RuntimeError("length of datasets must match length of config_files")
+
+        else:
+            if config_files is not None:
+                raise RuntimeError("Both config_dicts and config_files provided - not supported")
+
+            if len(datasets) != len(config_dicts):
+                raise RuntimeError("length of datasets must match length of config_dicts")
 
     if enable_parallel:
         if not workspace:
@@ -221,19 +285,14 @@ def evaluate_models(dataset, config_dicts=None, config_files=None, eval_mode="cv
             
             subdir.mkdir(parents=True, exist_ok=False)
 
-        #write data to disk
-        train_data_file = data_path / constants.TRAIN_DATA_FILE
-        pickle.dump(dataset, open(train_data_file, "wb" ))
 
-        #set up config files
-        if not config_dicts:
-            if not config_files:
-                raise RuntimeError("One of config_dicts or config_files must be provided evaluate models")
+        if dataset is not None:
+            #write dataset object to disk
+            dataset_file = data_path / constants.DATASET_FILE
+            pickle.dump(dataset, open(dataset_file, "wb" ))
 
-        else:
-            if config_files is not None:
-                raise RuntimeError("Both config_dicts and config_files provided - not supported")
-
+        #set up config, dataset files
+        if not config_files:
             config_files = []
             job_names = set()
             for config_dict in config_dicts:
@@ -250,16 +309,23 @@ def evaluate_models(dataset, config_dicts=None, config_files=None, eval_mode="cv
         job_names = []
         model_eval_script_dir = pathlib.Path(__file__).parent.absolute()
 
-        for config_file in config_files:
+        for i in range(len(config_files)):
+            config_file = config_files[i]
             config = json.load(open(config_file, "r"))
             job_name = config[constants.CONFIG_JOB_NAME]
 
             if job_name in job_info:
                 raise RuntimeError("duplicate job name: {}".format(job_name))
 
+            #write job-specific dataset to disk if required
+            if len(datasets) != 0:
+                #write dataset object to disk
+                dataset_file = data_path / "{}_{}.p".format(constants.DATASET_FILE_PREFIX, job_name)
+                pickle.dump(datasets[i], open(dataset_file, "wb" ))
+
             model_eval_script = model_eval_script_dir / constants.EVAL_MODEL_SCRIPT
             command_str = "python {} --workspace {} --job_name {} --data {} --config {}".format(
-                            model_eval_script, workspace, job_name, train_data_file, config_file)
+                            model_eval_script, workspace, job_name, dataset_file, config_file)
             pbs_file = utils.create_pbs(pbs_path, job_name, command_str, conda_env, time=time_limit, mem=mem_limit)
 
             job_info[job_name] = (config, pbs_file)
@@ -275,9 +341,9 @@ def evaluate_models(dataset, config_dicts=None, config_files=None, eval_mode="cv
         for name in job_names:
             curr_output_file = temp_output_path / "output_{}.json".format(name)
             while not curr_output_file.exists():
-                print("results for job {} not ready. Sleeping for 20s".format(name))
+                print("results for job {} not ready. Sleeping for 60s".format(name))
                 print("looking for: {}".format(curr_output_file))
-                time.sleep(20)
+                time.sleep(60)
 
             result_dict = json.load(open(curr_output_file, "r"))
             train_mse = result_dict[constants.TRAIN_MSE]

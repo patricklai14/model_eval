@@ -40,7 +40,7 @@ def main():
     #get model performance
     print("Evaluating with config: {}".format(config))
     train_mse, test_mse = model_evaluation.evaluate_model(config, dataset, run_dir)
-    print("Test MSE: {}".format(test_mse))
+    print("Test Error: {}".format(test_mse))
 
     #write result to file
     output_path = workspace_path / constants.OUTPUT_DIR / "output_{}.json".format(job_name)

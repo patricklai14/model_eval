@@ -61,6 +61,7 @@ def main():
         "evaluation_type": "k_fold_cv",
         "cv_iters": 2,
         "num_folds": 2,
+        "loss_type": "mse",
         "seed": 1,
         "amptorch_config": {
             "model": {
@@ -78,7 +79,7 @@ def main():
                 #notice that we don't set the actual dataset here
                 "val_split": 0,
                 "elements": elements,
-                "fp_scheme": "gmp",
+                "fp_scheme": "mcsh",
                 "fp_params": gmp_params_1,
                 "save_fps": False,
             },
