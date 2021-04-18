@@ -6,6 +6,7 @@ import os
 import pathlib
 import pdb
 import pickle
+import shutil
 
 from model_eval import model_evaluation, constants
 
@@ -19,6 +20,10 @@ def main():
                         help="location of dataset file")
     parser.add_argument("--config", type=str, required=True,
                         help="location of config file")
+    parser.add_argument("--train_only", action="store_true", 
+                        help="train without evaluating the model")
+    parser.add_argument("--checkpoint", action="store_true",
+                        help="if provided, load model from this checkpoint")
 
     args = parser.parse_args()
     args_dict = vars(args)
@@ -35,16 +40,42 @@ def main():
     config = json.load(open(config_file, "r"))
 
     run_dir = workspace_path / "{}/{}".format(constants.TRAINING_DIR, job_name)
-    run_dir.mkdir(parents=True, exist_ok=False)
+    
+    #check if we're loading a model from checkpoint
+    checkpoints_dir = run_dir / "checkpoints"
+    checkpoint_dir = ""
+    if args_dict["checkpoint"]:
+        #there should only be one checkpoint directory
+        checkpoint_dirs = [path for path in checkpoints_dir.iterdir()]
+        if len(checkpoint_dirs) != 1:
+            raise RuntimeError("More than one directory present in the checkpoints directory")
 
-    #get model performance
+        checkpoint_dir = checkpoint_dirs[0]
+
+    else:
+        run_dir.mkdir(parents=True, exist_ok=False)
+
+    #train and/or get model performance 
     print("Evaluating with config: {}".format(config))
-    train_mse, test_mse = model_evaluation.evaluate_model(config, dataset, run_dir)
-    print("Test Error: {}".format(test_mse))
+    if args_dict["train_only"]:
+        eval_params = model_evaluation.evaluation_params(config)
+        model_evaluation.train_model(eval_params, dataset, run_dir, checkpoint_dir)
+        output_path = workspace_path / constants.OUTPUT_DIR / "output_{}.txt".format(job_name)
+        output_file = open(output_path, "w")
+        output_file.write("job {} complete".format(job_name))
+        output_file.close()
 
-    #write result to file
-    output_path = workspace_path / constants.OUTPUT_DIR / "output_{}.json".format(job_name)
-    json.dump({constants.TRAIN_MSE: train_mse, constants.TEST_MSE: test_mse}, open(output_path, "w+"), indent=2)
+    else:
+        train_mse, test_mse = model_evaluation.evaluate_model(config, dataset, run_dir, checkpoint_dir)
+        print("Test Error: {}".format(test_mse))
+
+        #write result to file
+        output_path = workspace_path / constants.OUTPUT_DIR / "output_{}.json".format(job_name)
+        json.dump({constants.TRAIN_MSE: train_mse, constants.TEST_MSE: test_mse}, open(output_path, "w+"), indent=2)
+
+    #delete last checkpoint directory if necessary
+    if checkpoint_dir:
+        shutil.rmtree(checkpoint_dir) 
 
 if __name__ == "__main__":
     main()
