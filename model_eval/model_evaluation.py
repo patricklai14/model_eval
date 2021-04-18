@@ -88,8 +88,7 @@ class model_metrics:
         self.train_error = train_error
         self.test_error = test_error
 
-#evaluate model with a single train/test split
-def evaluate_model_one_split(eval_params, data, run_dir):
+def train_model(eval_params, data, run_dir, checkpoint_dir=""):
     #AMPTorch modifies the config we pass into it. We work around this by making a copy
     eval_params = copy.deepcopy(eval_params)
 
@@ -115,19 +114,27 @@ def evaluate_model_one_split(eval_params, data, run_dir):
             train_images = pickle.load(open(data.train_data_files[0], "rb"))
             eval_params.amptorch_config["dataset"]["raw_data"] = train_images
 
-    #if provided, this has to be a pickled list of images
+    eval_params.amptorch_config["cmd"]["run_dir"] = run_dir
+
+    trainer = AtomsTrainer(eval_params.amptorch_config)
+    if checkpoint_dir:
+        trainer.load_pretrained(checkpoint_dir)
+
+    trainer.train()
+
+#evaluate model with a single train/test split
+def evaluate_model_one_split(eval_params, data, run_dir, checkpoint_dir=""):
+
+    train_model(eval_params, data, run_dir, checkpoint_dir)
+
     if data.test_images:
         test_images = data.test_images
     elif data.test_data_files:
+        #if provided, this has to be a pickled list of images
         if len(data.test_data_files) != 1:
             raise RuntimeError("only one pickled testing data file allowed")
 
         test_images = pickle.load(open(data.test_data_files[0], "rb"))
-
-    eval_params.amptorch_config["cmd"]["run_dir"] = run_dir
-
-    trainer = AtomsTrainer(eval_params.amptorch_config)
-    trainer.train()
 
     #test MSE
     predictions = trainer.predict(test_images)
@@ -162,7 +169,7 @@ def evaluate_model_one_split(eval_params, data, run_dir):
     return curr_error_train, curr_error_test
 
 #run model evaluation with given params and return (train_mse, test_mse)
-def evaluate_model(eval_config, data, run_dir='./'):
+def evaluate_model(eval_config, data, run_dir='./', checkpoint_dir=""):
     eval_params = evaluation_params(eval_config)
     np.random.seed(eval_params.eval_config[constants.CONFIG_RAND_SEED])
 
@@ -212,7 +219,8 @@ def evaluate_model(eval_config, data, run_dir='./'):
                 images_test = data.train_images[start_index:end_index]
 
                 curr_data = dataset(train_images=images_train, test_images=images_test)
-                curr_error_train, curr_error_test = evaluate_model_one_split(eval_params, curr_data, run_dir)
+                curr_error_train, curr_error_test = evaluate_model_one_split(eval_params, curr_data, run_dir, 
+                                                                             checkpoint_dir)
                 
                 error_test_list.append(curr_error_test)
                 error_train_list.append(curr_error_train)
@@ -228,12 +236,12 @@ def evaluate_model(eval_config, data, run_dir='./'):
 
     else:
         #simple train on training set, test on test set
-        error_train, error_test = evaluate_model_one_split(eval_params, data, run_dir)
+        error_train, error_test = evaluate_model_one_split(eval_params, data, run_dir, checkpoint_dir)
         return error_train, error_test
 
 #evaluate the models given in config_files and return performance metrics
 def evaluate_models(dataset=None, datasets=[], config_dicts=None, config_files=None, enable_parallel=False, 
-                    workspace=None, time_limit="00:30:00", mem_limit=2, conda_env=None):
+                    workspace=None, time_limit="00:30:00", mem_limit=2, conda_env=None, num_jobs_per_config=1):
 
     #basic error checking on datasets/configs
     if not dataset:
@@ -304,17 +312,18 @@ def evaluate_models(dataset=None, datasets=[], config_dicts=None, config_files=N
                 json.dump(config_dict, open(config_file, "w+"), indent=2)
                 config_files.append(config_file)
 
-        #create pace pbs files
-        job_info = {} #job_name -> (config, pbs_file)
-        job_names = []
         model_eval_script_dir = pathlib.Path(__file__).parent.absolute()
+        model_eval_script = model_eval_script_dir / constants.EVAL_MODEL_SCRIPT
 
+        job_names = []
+        dataset_files = []
+        configs = []
         for i in range(len(config_files)):
             config_file = config_files[i]
             config = json.load(open(config_file, "r"))
             job_name = config[constants.CONFIG_JOB_NAME]
 
-            if job_name in job_info:
+            if job_name in job_names:
                 raise RuntimeError("duplicate job name: {}".format(job_name))
 
             #write job-specific dataset to disk if required
@@ -322,34 +331,55 @@ def evaluate_models(dataset=None, datasets=[], config_dicts=None, config_files=N
                 #write dataset object to disk
                 dataset_file = data_path / "{}_{}.p".format(constants.DATASET_FILE_PREFIX, job_name)
                 pickle.dump(datasets[i], open(dataset_file, "wb" ))
+            dataset_files.append(dataset_file)
 
-            model_eval_script = model_eval_script_dir / constants.EVAL_MODEL_SCRIPT
-            command_str = "python {} --workspace {} --job_name {} --data {} --config {}".format(
-                            model_eval_script, workspace, job_name, dataset_file, config_file)
-            pbs_file = utils.create_pbs(pbs_path, job_name, command_str, conda_env, time=time_limit, mem=mem_limit)
-
-            job_info[job_name] = (config, pbs_file)
             job_names.append(job_name)
+            configs.append(config)
 
-        #submit jobs on pace
-        for name, (config, pbs_file) in job_info.items():
-            print("Submitting job {} with config: {}".format(name, config))
-            subprocess.run(["qsub", pbs_file])
+        #train for num_jobs_per_config times before evaluating
+        for train_iter in range(num_jobs_per_config):
+            additional_cmd_options = ""
+            if train_iter < num_jobs_per_config - 1:
+                additional_cmd_options += "--train_only"
+            if train_iter > 0:
+                additional_cmd_options += " --checkpoint" 
 
-        #collect results
-        results = []
-        for name in job_names:
-            curr_output_file = temp_output_path / "output_{}.json".format(name)
-            while not curr_output_file.exists():
-                print("results for job {} not ready. Sleeping for 60s".format(name))
-                print("looking for: {}".format(curr_output_file))
-                time.sleep(60)
+            #create pace pbs files, then submit jobs
+            for i in range(len(job_names))
+                job_name = job_names[i]
+                dataset_file = dataset_files[i]
+                config_file = config_files[i]
+                config = configs[i]
 
-            result_dict = json.load(open(curr_output_file, "r"))
-            train_mse = result_dict[constants.TRAIN_MSE]
-            test_mse = result_dict[constants.TEST_MSE]
+                command_str = "python {} --workspace {} --job_name {} --data {} --config {}{}".format(
+                            model_eval_script, workspace, job_name, dataset_file, config_file, additional_cmd_options)
+                pbs_file = utils.create_pbs(pbs_path, job_name, command_str, conda_env, time=time_limit, mem=mem_limit)
 
-            results.append(model_metrics(train_mse, test_mse))
+                print("Submitting job {} with config: {}".format(name, config))
+                subprocess.run(["qsub", pbs_file])
+
+            #check for/collect results
+            results = []
+            for name in job_names:
+                if train_iter < num_jobs_per_config - 1:
+                    curr_output_file = temp_output_path / "output_{}.txt".format(name)                    
+                else:
+                    curr_output_file = temp_output_path / "output_{}.json".format(name)
+
+                while not curr_output_file.exists():
+                    print("results for job {} not ready. Sleeping for 60s".format(name))
+                    print("looking for: {}".format(curr_output_file))
+                    time.sleep(60)
+
+                #collect results if this is the last iteration
+                if train_iter == num_jobs_per_config - 1:
+                    result_dict = json.load(open(curr_output_file, "r"))
+                    train_mse = result_dict[constants.TRAIN_MSE]
+                    test_mse = result_dict[constants.TEST_MSE]
+
+                    results.append(model_metrics(train_mse, test_mse))
+                else:
+                    curr_output_file.unlink()
 
         #clear workspace
         if workspace_path.exists() and workspace_path.is_dir():
