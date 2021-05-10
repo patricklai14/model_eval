@@ -8,7 +8,7 @@ import pdb
 import pickle
 import shutil
 
-from model_eval import model_evaluation, constants
+from model_eval import model_evaluation, constants, utils
 
 def main():
     parser = argparse.ArgumentParser(description="Run model evaluation")
@@ -42,18 +42,11 @@ def main():
     run_dir = workspace_path / "{}/{}".format(constants.TRAINING_DIR, job_name)
     
     #check if we're loading a model from checkpoint
-    checkpoints_dir = run_dir / "checkpoints"
-    checkpoint_dir = ""
     if args_dict["checkpoint"]:
-        #there should only be one checkpoint directory
-        checkpoint_dirs = [path for path in checkpoints_dir.iterdir()]
-        if len(checkpoint_dirs) != 1:
-            raise RuntimeError("More than one directory present in the checkpoints directory")
-
-        checkpoint_dir = checkpoint_dirs[0]
-
+        checkpoint_dir = utils.get_checkpoint_dir(run_dir)
     else:
         run_dir.mkdir(parents=True, exist_ok=False)
+        checkpoint_dir = ""
 
     #train and/or get model performance 
     print("Evaluating with config: {}".format(config))

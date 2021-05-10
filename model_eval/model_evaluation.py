@@ -244,8 +244,10 @@ def evaluate_model(eval_config, data, run_dir='./', checkpoint_dir=""):
         return error_train, error_test
 
 #evaluate the models given in config_files and return performance metrics
+#save_model_dir = directory to save model checkpoints
 def evaluate_models(dataset=None, datasets=[], config_dicts=None, config_files=None, enable_parallel=False, 
-                    workspace=None, time_limit="00:30:00", mem_limit=2, conda_env=None, num_train_iters=1):
+                    workspace=None, time_limit="00:30:00", mem_limit=2, conda_env=None, num_train_iters=1,
+                    save_model_dir=""):
 
     #basic error checking on datasets/configs
     if not dataset:
@@ -296,7 +298,6 @@ def evaluate_models(dataset=None, datasets=[], config_dicts=None, config_files=N
                 shutil.rmtree(subdir)
             
             subdir.mkdir(parents=True, exist_ok=False)
-
 
         if dataset is not None:
             #write dataset object to disk
@@ -385,6 +386,11 @@ def evaluate_models(dataset=None, datasets=[], config_dicts=None, config_files=N
                 else:
                     curr_output_file.unlink()
 
+        #if we're saving the model, copy model from workspace
+        #TODO: consider saving to this directory directly
+        if save_model_dir:
+            shutil.move(str(training_path), str(save_model_dir))
+
         #clear workspace
         if workspace_path.exists() and workspace_path.is_dir():
             shutil.rmtree(workspace_path) 
@@ -409,7 +415,7 @@ def evaluate_models(dataset=None, datasets=[], config_dicts=None, config_files=N
             #get model performance
             print("Evaluating with config: {}".format(config))
             train_mse, test_mse = evaluate_model(config, copy.deepcopy(dataset))
-            print("Test MSE: {}".format(test_mse))
+            print("Test Error: {}".format(test_mse))
 
             results.append(model_metrics(train_mse, test_mse))
 

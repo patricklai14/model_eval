@@ -7,8 +7,9 @@ import numpy as np
 
 from ase import Atoms
 from ase.calculators.emt import EMT
+from amptorch.trainer import AtomsTrainer
 
-from model_eval import model_evaluation
+from model_eval import model_evaluation, utils
 
 def main():
     #setup dataset
@@ -31,11 +32,13 @@ def main():
         image.set_calculator(EMT())
         images.append(image)
 
-    data = model_evaluation.dataset(images)
+    train_images = images[:80]
+    test_images = images[80:]
+    data = model_evaluation.dataset(train_images=train_images, test_images=test_images)
 
 
     elements = ["Cu","C","O"]
-    dir_prefix = "/storage/home/hpaceice1/plai30/sandbox"
+    dir_prefix = "/storage/home/hcoda1/7/plai30/sandbox"
     atom_gaussians = {"C": os.path.join(dir_prefix, "config/MCSH_potential/C_coredensity_5.g"),
                       "O": os.path.join(dir_prefix, "config/MCSH_potential/O_totaldensity_7.g"),
                       "Cu": os.path.join(dir_prefix, "config/MCSH_potential/Cu_totaldensity_5.g")}
@@ -58,9 +61,7 @@ def main():
 
     config_1 = {
         "name": "test_job_1",
-        "evaluation_type": "k_fold_cv",
-        "cv_iters": 2,
-        "num_folds": 2,
+        "evaluation_type": "train_test_split",
         "loss_type": "mse",
         "seed": 1,
         "amptorch_config": {
@@ -116,6 +117,7 @@ def main():
 
     #run model evaluation
     workspace = curr_dir / "test_workspace"
+    save_model_dir = curr_dir / "saved_models"
     
     #running model evaluation by passing in a list of config files
     #results = model_evaluation.evaluate_models(data, config_dicts=[str(config_file_1), str(config_file_2)],
@@ -124,12 +126,33 @@ def main():
 
     #running model evaluation by passing in a list of config dicts
     #replace "amptorch" below with name of conda env that has AMPTorch installed
-    results = model_evaluation.evaluate_models(data, config_dicts=[config_1, config_2], 
+    config_dicts = [config_1, config_2]
+    results = model_evaluation.evaluate_models(data, config_dicts=config_dicts, 
                                                enable_parallel=True, workspace=workspace, 
-                                               time_limit="00:30:00", mem_limit=2, conda_env="amptorch")
+                                               time_limit="00:30:00", mem_limit=2, conda_env="amptorch",
+                                               save_model_dir=save_model_dir)
 
     #print results
-    print("CV errors: {}".format([metrics.test_error for metrics in results]))
+    test_errors = [metrics.test_error for metrics in results]
+    print("Test errors: {}".format(test_errors))
+
+    #test if saved models produce matching results
+    saved_test_errors = []
+    true_energies_test = np.array([image.get_potential_energy() for image in test_images])
+    for i in range(2):
+        amptorch_config = config_dicts[i]["amptorch_config"]
+        amptorch_config["dataset"]["raw_data"] = test_images #not used, but required by amptorch
+        trainer = AtomsTrainer(amptorch_config)
+
+        checkpoint_dir = utils.get_checkpoint_dir(save_model_dir / "test_job_{}".format(i + 1))
+        trainer.load_pretrained(checkpoint_dir)
+        predictions = trainer.predict(test_images)
+        pred_energies = np.array(predictions["energy"])
+    
+        curr_error_test = np.mean((true_energies_test - pred_energies) ** 2)
+        saved_test_errors.append(curr_error_test)
+    print("Test errors for saved models: {}".format(saved_test_errors))
+
 
 if __name__ == "__main__":
     main()
