@@ -8,7 +8,7 @@ import numpy as np
 from ase import Atoms
 from ase.calculators.emt import EMT
 
-from model_eval import model_evaluation
+from model_eval import model_evaluation, utils
 
 def main():
     #setup dataset
@@ -105,22 +105,24 @@ def main():
 
     curr_dir = pathlib.Path(__file__).parent.absolute()
 
-    config_file_1 = curr_dir / "config_1.json" 
-    json.dump(config_1, open(config_file_1, "w+"), indent=2)
-
-    config_file_2 = curr_dir / "config_2.json"
-    json.dump(config_2, open(config_file_2, "w+"), indent=2)
-
-
     #run model evaluation
     workspace = curr_dir / "test_workspace"
+    save_model_dir = curr_dir / "model_checkpoints"
     #replace "amptorch" below with name of conda env that has AMPTorch installed
+    model_evaluation.evaluate_models(data, config_dicts=[config_1, config_2], enable_parallel=True, 
+                                     workspace=workspace, time_limit="00:30:00", mem_limit=2, 
+                                     conda_env="amptorch", save_model_dir=save_model_dir)
+
+    #resume training from saved checkpoints
+    checkpoint_dirs = [utils.get_checkpoint_dir(save_model_dir / "test_job_1"),
+                       utils.get_checkpoint_dir(save_model_dir / "test_job_2")]
     results = model_evaluation.evaluate_models(data, config_dicts=[config_1, config_2], enable_parallel=True, 
                                                workspace=workspace, time_limit="00:30:00", mem_limit=2, 
-                                               conda_env="amptorch", num_train_iters=2)
+                                               conda_env="amptorch", checkpoint_dirs=checkpoint_dirs)
 
     #print results
     print("Test errors: {}".format([metrics.test_error for metrics in results]))
 
 if __name__ == "__main__":
     main()
+

@@ -20,10 +20,12 @@ def main():
                         help="location of dataset file")
     parser.add_argument("--config", type=str, required=True,
                         help="location of config file")
+    parser.add_argument("--checkpoint", type=str, required=False, default="",
+                        help="if provided, load model from this checkpoint")
     parser.add_argument("--train_only", action="store_true", 
                         help="train without evaluating the model")
-    parser.add_argument("--checkpoint", action="store_true",
-                        help="if provided, load model from this checkpoint")
+    parser.add_argument("--delete_prev_checkpoint", action="store_true",
+                        help="delete provided checkpoint after training")
 
     args = parser.parse_args()
     args_dict = vars(args)
@@ -40,13 +42,10 @@ def main():
     config = json.load(open(config_file, "r"))
 
     run_dir = workspace_path / "{}/{}".format(constants.TRAINING_DIR, job_name)
+    run_dir.mkdir(parents=True, exist_ok=True)
     
     #check if we're loading a model from checkpoint
-    if args_dict["checkpoint"]:
-        checkpoint_dir = utils.get_checkpoint_dir(run_dir)
-    else:
-        run_dir.mkdir(parents=True, exist_ok=False)
-        checkpoint_dir = ""
+    checkpoint_dir = args_dict["checkpoint"]
 
     #train and/or get model performance 
     print("Evaluating with config: {}".format(config))
@@ -67,7 +66,7 @@ def main():
         json.dump({constants.TRAIN_MSE: train_mse, constants.TEST_MSE: test_mse}, open(output_path, "w+"), indent=2)
 
     #delete last checkpoint directory if necessary
-    if checkpoint_dir:
+    if checkpoint_dir and args_dict["delete_prev_checkpoint"]:
         shutil.rmtree(checkpoint_dir) 
 
 if __name__ == "__main__":
