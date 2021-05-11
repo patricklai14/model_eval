@@ -247,7 +247,7 @@ def evaluate_model(eval_config, data, run_dir='./', checkpoint_dir=""):
 #save_model_dir = directory to save model checkpoints
 def evaluate_models(dataset=None, datasets=[], config_dicts=None, config_files=None, enable_parallel=False, 
                     workspace=None, time_limit="00:30:00", mem_limit=2, conda_env=None, num_train_iters=1,
-                    save_model_dir=""):
+                    save_model_dir="", checkpoint_dirs=[]):
 
     #basic error checking on datasets/configs
     if not dataset:
@@ -346,8 +346,6 @@ def evaluate_models(dataset=None, datasets=[], config_dicts=None, config_files=N
             additional_cmd_options = ""
             if train_iter < num_train_iters - 1:
                 additional_cmd_options += " --train_only"
-            if train_iter > 0:
-                additional_cmd_options += " --checkpoint" 
 
             #create pace pbs files, then submit jobs
             for i in range(len(job_names)):
@@ -355,6 +353,13 @@ def evaluate_models(dataset=None, datasets=[], config_dicts=None, config_files=N
                 dataset_file = dataset_files[i]
                 config_file = config_files[i]
                 config = configs[i]
+
+                if train_iter == 0 and checkpoint_dirs:
+                    additional_cmd_options += " --checkpoint {}".format(checkpoint_dirs[i])
+
+                elif train_iter > 0:
+                    additional_cmd_options += " --checkpoint {} --delete_prev_checkpoint".format(
+                                                utils.get_checkpoint_dir(training_path / job_name)) 
 
                 command_str = "python {} --workspace {} --job_name {} --data {} --config {}{}".format(
                             model_eval_script, workspace, job_name, dataset_file, config_file, additional_cmd_options)
