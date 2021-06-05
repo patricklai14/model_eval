@@ -10,6 +10,7 @@ import time
 import numpy as np
 
 from amptorch.trainer import AtomsTrainer
+from ase.io.trajectory import Trajectory
 
 from model_eval import constants, utils
 
@@ -99,21 +100,33 @@ def train_model(eval_params, data, run_dir, checkpoint_dir=""):
         eval_params.amptorch_config["dataset"]["raw_data"] = data.train_images
         train_images = data.train_images
     else:
-        is_lmdb = True
-        for data_file in data.train_data_files:
-            if data_file[-5:] != ".lmdb":
-                is_lmdb = False
-
-        if is_lmdb:
+        #check just the first file
+        if ".lmdb" in data.train_data_files[0]:
             #handle lmdb files
+            data_file_type = "lmdb"
             eval_params.amptorch_config["dataset"]["lmdb_path"] = data.train_data_files
-        else:
-            #handled pickled images
+
+        elif ".p" in data.train_data_files[0]:
+            #handle pickled images
+            data_file_type = "pickle"
             if len(data.train_data_files) != 1:
                 raise RuntimeError("only one pickled training data file allowed")
 
             train_images = pickle.load(open(data.train_data_files[0], "rb"))
             eval_params.amptorch_config["dataset"]["raw_data"] = train_images
+
+        elif ".traj" in data.train_data_files[0]:
+            #handle traj files
+            data_file_type = "traj"
+            if len(data.train_data_files) != 1:
+                raise RuntimeError("only one traj training data file allowed")
+
+            traj = Trajectory(data.train_data_files[0])
+            train_images = [img for img in traj]
+            eval_params.amptorch_config["dataset"]["raw_data"] = train_images
+
+        else:
+            raise RuntimeError("Data files must be .lmdb, .p, or .traj files")
 
     eval_params.amptorch_config["cmd"]["run_dir"] = run_dir
 
@@ -123,7 +136,7 @@ def train_model(eval_params, data, run_dir, checkpoint_dir=""):
 
     trainer.train()
 
-    #calcualte training error
+    #calculate training error
     loss_type = eval_params.eval_config[constants.CONFIG_EVAL_LOSS_TYPE]
     if train_images:
         predictions = trainer.predict(train_images)
@@ -135,6 +148,10 @@ def train_model(eval_params, data, run_dir, checkpoint_dir=""):
             curr_error_train = np.mean((true_energies_train - pred_energies) ** 2)
         elif loss_type == constants.CONFIG_LOSS_TYPE_MAE:
             curr_error_train = np.mean(np.abs(true_energies_train - pred_energies))
+        elif loss_type == constants.CONFIG_LOSS_TYPE_ATOM_MAE:
+            total_errors = np.mean(np.abs(true_energies_train - pred_energies))
+            num_atoms = np.array([img.get_global_number_of_atoms() for img in train_images])
+            curr_error_train = total_errors / num_atoms
 
         print("Train Error: {}".format(curr_error_train))
     else:
@@ -150,11 +167,21 @@ def evaluate_model_one_split(eval_params, data, run_dir, checkpoint_dir=""):
     if data.test_images:
         test_images = data.test_images
     elif data.test_data_files:
-        #if provided, this has to be a pickled list of images
+        
         if len(data.test_data_files) != 1:
-            raise RuntimeError("only one pickled testing data file allowed")
+            raise RuntimeError("only one testing data file allowed")
 
-        test_images = pickle.load(open(data.test_data_files[0], "rb"))
+        if ".p" in data.test_data_files[0]:
+            #handle pickled images
+            test_images = pickle.load(open(data.test_data_files[0], "rb"))
+
+        elif ".traj" in data.test_data_files[0]:
+            #handle traj files
+            traj = Trajectory(data.train_data_files[0])
+            test_images = [img for img in traj]
+
+        else:
+            raise RuntimeError("Test data files must be .p, or .traj files")
 
     #test MSE
     predictions = trainer.predict(test_images)
@@ -167,6 +194,10 @@ def evaluate_model_one_split(eval_params, data, run_dir, checkpoint_dir=""):
         curr_error_test = np.mean((true_energies_test - pred_energies) ** 2)
     elif loss_type == constants.CONFIG_LOSS_TYPE_MAE:
         curr_error_test = np.mean(np.abs(true_energies_test - pred_energies))
+    elif loss_type == constants.CONFIG_LOSS_TYPE_ATOM_MAE:
+        total_errors = np.mean(np.abs(true_energies_test - pred_energies))
+        num_atoms = np.array([img.get_global_number_of_atoms() for img in test_images])
+        curr_error_test = total_errors / num_atoms
 
     print("Test Error: {}".format(curr_error_test))
     
