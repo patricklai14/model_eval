@@ -149,9 +149,9 @@ def train_model(eval_params, data, run_dir, checkpoint_dir=""):
         elif loss_type == constants.CONFIG_LOSS_TYPE_MAE:
             curr_error_train = np.mean(np.abs(true_energies_train - pred_energies))
         elif loss_type == constants.CONFIG_LOSS_TYPE_ATOM_MAE:
-            total_errors = np.mean(np.abs(true_energies_train - pred_energies))
+            total_errors = np.abs(true_energies_train - pred_energies)
             num_atoms = np.array([img.get_global_number_of_atoms() for img in train_images])
-            curr_error_train = total_errors / num_atoms
+            curr_error_train = np.mean(total_errors / num_atoms)
 
         print("Train Error: {}".format(curr_error_train))
     else:
@@ -195,9 +195,9 @@ def evaluate_model_one_split(eval_params, data, run_dir, checkpoint_dir=""):
     elif loss_type == constants.CONFIG_LOSS_TYPE_MAE:
         curr_error_test = np.mean(np.abs(true_energies_test - pred_energies))
     elif loss_type == constants.CONFIG_LOSS_TYPE_ATOM_MAE:
-        total_errors = np.mean(np.abs(true_energies_test - pred_energies))
+        total_errors = np.abs(true_energies_test - pred_energies)
         num_atoms = np.array([img.get_global_number_of_atoms() for img in test_images])
-        curr_error_test = total_errors / num_atoms
+        curr_error_test = np.mean(total_errors / num_atoms)
 
     print("Test Error: {}".format(curr_error_test))
     

@@ -32,3 +32,4 @@ PARAM_MCSH_GROUP_PARAMS = "mcsh_group_params"
 #evaluation param values
 CONFIG_LOSS_TYPE_MAE = "mae"
 CONFIG_LOSS_TYPE_MSE = "mse"
+CONFIG_LOSS_TYPE_ATOM_MAE = "atom_mae"
