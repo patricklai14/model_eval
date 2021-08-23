@@ -177,7 +177,7 @@ def evaluate_model_one_split(eval_params, data, run_dir, checkpoint_dir=""):
 
         elif ".traj" in data.test_data_files[0]:
             #handle traj files
-            traj = Trajectory(data.train_data_files[0])
+            traj = Trajectory(data.test_data_files[0])
             test_images = [img for img in traj]
 
         else:
